@@ -10,36 +10,6 @@ add_action( 'wp_ajax_porto_import_widgets', 'porto_import_widgets' );
 add_action( 'wp_ajax_porto_import_icons', 'porto_import_icons');
 add_action( 'wp_ajax_porto_import_options', 'porto_import_options' );
 
-
-// Início Criado por Pets na Web
-add_action( 'wp_ajax_clone_site_petsnaweb', 'clone_site_petsnaweb' );
-function clone_site_petsnaweb() {
-	
-	$source_blog_id = $_POST['source_blog_id'];
-	$destination_blog_id = $_POST['destination_blog_id'];
-	//$user_id = get_current_user_id();
-	$user_id = $_POST['user_destination_id'];
-	
-	$source_blog_details = get_blog_details( $source_blog_id );
-	$destination_blog_details = get_blog_details( $destination_blog_id );
-
-	if ( ! $source_blog_details || ! $destination_blog_details )
-		return;
-
-	if ( is_main_site( $destination_blog_id ) )
-		return;
-
-	if ( ! function_exists( 'copier_set_copier_args' ) )
-		return;
-
-	$result = copier_set_copier_args( $source_blog_id, $destination_blog_id, $user_id );
-	
-	wp_logout();
-	
-}
-// Fim Criado por Pets na Web
-
-
 function porto_reset_menus() {
     if ( current_user_can( 'manage_options' ) ) {
         $import_shortcodes = (isset($_POST['import_shortcodes']) && $_POST['import_shortcodes'] == 'true') ? true : false;
@@ -136,16 +106,38 @@ function porto_import_dummy() {
             add_image_size( 'shop_single', $single['width'], $single['height'], $single['crop'] );
 
             // Add sidebar widget areas
-            $sbg_sidebar = get_option( 'sbg_sidebars' );
-            if (!array_key_exists('PortfolioSidebar', $sbg_sidebar)) {
-                $sbg_sidebar = array_merge($sbg_sidebar, array('PortfolioSidebar' => 'Portfolio Sidebar'));
-                update_option( 'sbg_sidebars', $sbg_sidebar );
+            $extra_demos = array('digital-agency', 'law-firm', 'construction', 'restaurant');
+            if (!in_array($demo, $extra_demos)) {
+                $sbg_sidebar = get_option( 'sbg_sidebars', array() );
+                if (!array_key_exists('PortfolioSidebar', $sbg_sidebar)) {
+                    $sbg_sidebar = array_merge($sbg_sidebar, array('PortfolioSidebar' => 'Portfolio Sidebar'));
+                    update_option( 'sbg_sidebars', $sbg_sidebar );
+                }
+            }
+            if ($demo == 'construction') {
+                $sbg_sidebar = get_option( 'sbg_sidebars', array() );
+                if (!array_key_exists('CompanySidebar', $sbg_sidebar)) {
+                    $sbg_sidebar = array_merge($sbg_sidebar, array('CompanySidebar' => 'Company Sidebar'));
+                    update_option( 'sbg_sidebars', $sbg_sidebar );
+                }
+                $sbg_sidebar = get_option( 'sbg_sidebars', array() );
+                if (!array_key_exists('ServicesSidebar', $sbg_sidebar)) {
+                    $sbg_sidebar = array_merge($sbg_sidebar, array('ServicesSidebar' => 'Services Sidebar'));
+                    update_option( 'sbg_sidebars', $sbg_sidebar );
+                }
+            }
+            if ($demo == 'law-firm') {
+                $sbg_sidebar = get_option( 'sbg_sidebars', array() );
+                if (!array_key_exists('GeneralSidebar', $sbg_sidebar)) {
+                    $sbg_sidebar = array_merge($sbg_sidebar, array('GeneralSidebar' => 'General Sidebar'));
+                    update_option( 'sbg_sidebars', $sbg_sidebar );
+                }
             }
         }
 
         if ($process == 'import_start' && $demo == 'shortcodes') {
             // Add sidebar widget areas
-            $sbg_sidebar = get_option( 'sbg_sidebars', $sidebars );
+            $sbg_sidebar = get_option( 'sbg_sidebars', array() );
             if (!array_key_exists('ShortcodesSidebar', $sbg_sidebar)) {
                 $sbg_sidebar = array_merge($sbg_sidebar, array('ShortcodesSidebar' => 'Shortcodes Sidebar'));
                 update_option( 'sbg_sidebars', $sbg_sidebar );
@@ -213,7 +205,13 @@ function porto_import_dummy() {
 
             // Set reading options
             $homepage = get_page_by_title( 'Home' );
-            $posts_page = get_page_by_title( 'Blog' );
+            if ($demo == 'law-firm') {
+                $posts_page = get_page_by_title( 'News' );
+            } else if ($demo == 'restaurant') {
+                $posts_page = get_page_by_title( 'Press' );
+            } else {
+                $posts_page = get_page_by_title( 'Blog' );
+            }
             if (($homepage && $homepage->ID) || ($posts_page && $posts_page->ID)) {
                 update_option('show_on_front', 'page');
                 if ($homepage && $homepage->ID) {
@@ -251,6 +249,8 @@ function porto_import_dummy() {
                     'menu-item-status' => 'publish'));
             }
 
+            // Flush rules after install
+            flush_rewrite_rules();
         }
         if ($response['process'] == 'complete' && $demo == 'shortcodes') {
             // Import widgets
@@ -289,6 +289,9 @@ function porto_import_dummy() {
                         'menu-item-status' => 'publish'));
                 }
             }
+
+            // Flush rules after install
+            flush_rewrite_rules();
         }
         ob_end_clean();
     }
@@ -365,8 +368,8 @@ function porto_import_options() {
         ob_end_clean();
 
         try {
-            porto_import_theme_settings();
             porto_save_theme_settings();
+            porto_import_theme_settings();
             echo __('Successfully imported theme options!', 'porto');
         } catch (Exception $e) {
             echo __('Successfully imported theme options! Please compile default css files in Theme Options > Skin > Compile Default CSS.', 'porto');
