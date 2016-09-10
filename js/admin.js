@@ -152,7 +152,9 @@
 
 jQuery(document).ready(function($) {
     // content type meta tab
-    $('.porto-meta-tab').easyResponsiveTabs();
+    $('.porto-meta-tab').easyResponsiveTabs({
+        type: 'default'//, //default, vertical, accordion;
+    });
 
     // taxonomy meta tab
     $('.porto-tab-row').hide();
@@ -251,7 +253,7 @@ jQuery(document).ready(function($) {
 var file_frame;
 var clickedID;
 
-jQuery(document).on( 'click', '.button_upload_image', function( event ){
+jQuery(document).off( 'click', '.button_upload_image').on( 'click', '.button_upload_image', function( event ){
 
     event.preventDefault();
 
@@ -283,10 +285,44 @@ jQuery(document).on( 'click', '.button_upload_image', function( event ){
     });
 });
 
+jQuery(document).off( 'click', '.button_attach_image').on( 'click', '.button_attach_image', function( event ){
+
+    event.preventDefault();
+
+    // If the media frame already exists, reopen it.
+    if ( !file_frame ) {
+        // Create the media frame.
+        file_frame = wp.media.frames.downloadable_file = wp.media({
+            title: 'Choose an image',
+            button: {
+                text: 'Use image'
+            },
+            multiple: false
+        });
+    }
+
+    file_frame.open();
+
+    clickedID = jQuery(this).attr('id');
+
+    // When an image is selected, run a callback.
+    file_frame.on( 'select', function() {
+        attachment = file_frame.state().get('selection').first().toJSON();
+
+        jQuery('#' + clickedID).val( attachment.id );
+        jQuery('#' + clickedID + '_thumb').html('<img src="' + attachment.url + '"/>');
+        if (jQuery('#' + clickedID).attr('data-name'))
+            jQuery('#' + clickedID).attr('name', jQuery('#' + clickedID).attr('data-name'));
+
+        file_frame.close();
+    });
+});
+
 jQuery(document).on( 'click', '.button_remove_image', function( event ){
     
     var clickedID = jQuery(this).attr('id');
     jQuery('#' + clickedID).val( '' );
+    jQuery('#' + clickedID + '_thumb').html('');
 
     return false;
 });
@@ -432,6 +468,21 @@ jQuery(function($) {
         }, 200);
     } );
 
+    // Remove import success values
+    if ($('#redux-form-wrapper').length) {
+        var $referer = $('#redux-form-wrapper input[name="_wp_http_referer"]');
+        var value = $referer.val();
+        value = value.replace('&import_success=true', '');
+        value = value.replace('&import_masterslider_success=true', '');
+        value = value.replace('&import_widget_success=true', '');
+        value = value.replace('&import_options_success=true', '');
+        value = value.replace('&compile_theme_success=true', '');
+        value = value.replace('&compile_theme_rtl_success=true', '');
+        value = value.replace('&compile_plugins_success=true', '');
+        value = value.replace('&compile_plugins_rtl_success=true', '');
+        $referer.val(value);
+    }
+
     function alertLeavePage(e) {
         var dialogText = "Are you sure you want to leave?";
         e.returnValue = dialogText;
@@ -468,6 +519,25 @@ jQuery(function($) {
         $('.porto-install-demos #import-status').stop().show().html(html);
     }
 
+    // filter demos
+    if ($('#theme-install-demos').length) {
+        var $install_demos = $('#theme-install-demos').isotope(),
+            $demos_filter = $('.demo-sort-filters');
+
+        $demos_filter.find('.sort-source li').click(function(e) {
+            e.preventDefault();
+            var $this = $(this),
+                filter = $this.data('filter-by');
+            $install_demos.isotope({
+                filter: (filter == '*' ? filter : ('.' + filter))
+            });
+            $demos_filter.find('.sort-source li').removeClass('active');
+            $this.addClass('active');
+            return false;
+        });
+        $demos_filter.find('.sort-source li[data-active="true"]').click();
+    }
+
     // install demo
     $( '.button-install-demo' ).live( 'click', function(e) {
         e.preventDefault();
@@ -479,7 +549,7 @@ jQuery(function($) {
             return;
 
         addAlertLeavePage();
-		
+
         $('#porto-install-demo-type').val(selected_demo);
         $('#porto-install-options .theme-name').html($this.closest('.theme-wrapper').find('.theme-name').html());
         $('#porto-install-options').slideDown();
@@ -490,8 +560,7 @@ jQuery(function($) {
 
     });
 
-    
-	// cancel import button
+    // cancel import button
     $('#porto-import-no').click(function() {
         $('#porto-install-options').slideUp();
         removeAlertLeavePage();
@@ -514,29 +583,35 @@ jQuery(function($) {
 
         if (options.demo) {
             showImportMessage(demo, '');
-            porto_reset_menus(options);
+            porto_import_options(options);
         }
         $('#porto-install-options').slideUp();
     });
-	
-	
-	// importar modelo Pets na Web
-	    $('#petsnaweb-import-yes').click(function() {
-    
-			var demo = $('#porto-install-demo-type').val(),
-				blog_destination = $('#petsnaweb-import-destination-id').val(),
-				user_destination = $('#petsnaweb-import-user-id').val(),
-				data = {'action': 'clone_site_petsnaweb', 'source_blog_id': demo, 'destination_blog_id': blog_destination, 'user_destination_id': user_destination};
-							
-			$.post(ajaxurl, data, function(response){
-				console.log(response);
-			});
-			$('#porto-install-options').slideUp();
-			removeAlertLeavePage();			
-		});
 
-    
-	// reset_menus
+    // import options
+    function porto_import_options(options) {
+        if (!options.demo) {
+            removeAlertLeavePage();
+            return;
+        }
+        if (options.import_options) {
+            var demo = options.demo,
+                data = {'action': 'porto_import_options', 'demo': demo};
+
+            showImportMessage(demo, 'Importing theme options');
+
+            $.post(ajaxurl, data, function(response) {
+                if (response) showImportMessage(demo, response);
+                porto_reset_menus(options);
+            }).fail(function(response) {
+                    porto_reset_menus(options);
+                });
+        } else {
+            porto_reset_menus(options);
+        }
+    }
+
+    // reset_menus
     function porto_reset_menus(options) {
         if (!options.demo) {
             removeAlertLeavePage();
@@ -706,7 +781,7 @@ jQuery(function($) {
             dummy_process = 'import_start';
             porto_import_shortcodes_process(options, data);
         } else {
-            porto_import_options(options)
+            porto_import_finished(options)
         }
     }
 
@@ -731,11 +806,11 @@ jQuery(function($) {
 
                     showImportMessage(demo, "Importing shortcode pages");
                 } else {
-                    porto_import_options(options);
+                    porto_import_finished(options);
                 }
             } else {
                 showImportMessage(demo, 'Failed importing! Please check the "System Status" tab to ensure your server meets all requirements for a successful import. Settings that need attention will be listed in red.');
-                porto_import_options(options);
+                porto_import_finished(options);
             }
         }).fail(function(response) {
             if (dummy_index < dummy_count) {
@@ -753,29 +828,6 @@ jQuery(function($) {
                 porto_import_shortcodes_process(options, requests);
             }
         });
-    }
-
-    // import options
-    function porto_import_options(options) {
-        if (!options.demo) {
-            removeAlertLeavePage();
-            return;
-        }
-        if (options.import_options) {
-            var demo = options.demo,
-                data = {'action': 'porto_import_options', 'demo': demo};
-
-            showImportMessage(demo, 'Importing theme options');
-
-            $.post(ajaxurl, data, function(response) {
-                if (response) showImportMessage(demo, response);
-                porto_import_finished(options);
-            }).fail(function(response) {
-                porto_import_finished(options);
-            });
-        } else {
-            porto_import_finished(options);
-        }
     }
 
     // import finished
